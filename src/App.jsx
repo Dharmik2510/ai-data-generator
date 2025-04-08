@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   AppBar, 
   Toolbar, 
@@ -8,6 +8,9 @@ import {
   Alert
 } from '@mui/material';
 
+// Import services
+import { getTemplates, getTemplateById } from './templateService';
+
 // Import components
 import ErrorBoundary from './components/ErrorBoundry';
 import StepperNavigation from './components/StepperNavigation';
@@ -15,6 +18,8 @@ import RequirementsInput from './components/RequirementsInput';
 import SchemaReview from './components/SchemaReview';
 import DataGeneration from './components/DataGeneration';
 import SchemaVisualizer from './components/SchemaVisualizer';
+
+
 
 const App = () => {
   const [inputText, setInputText] = useState('');
@@ -25,8 +30,30 @@ const App = () => {
   const [dataGenerated, setDataGenerated] = useState(false);
   const [appError, setAppError] = useState(null);
   const [activeStep, setActiveStep] = useState(0);
+  
+  // Template related state
+  const [templates, setTemplates] = useState([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState(null);
+
+  // Load templates when component mounts
+  useEffect(() => {
+    const availableTemplates = getTemplates();
+    setTemplates(availableTemplates);
+  }, []);
 
   const steps = ['Define Requirements', 'Confirm Schema', 'Generate Data'];
+
+  const handleSelectTemplate = (templateId) => {
+    const template = getTemplateById(templateId);
+    if (template) {
+      setSelectedTemplateId(templateId);
+      setInputText(template.template);
+      // When selecting a template, we can pre-generate the mermaid diagram
+      // but still require the user to click "Generate Schema" to proceed
+      // This makes the flow more consistent, but could be changed to auto-proceed
+      setSchema(''); // Reset schema to not show the diagram yet
+    }
+  };
 
   const handleGenerateSchema = async () => {
     if (!inputText.trim()) {
@@ -43,21 +70,32 @@ const App = () => {
       // Simulate processing delay
       await new Promise(resolve => setTimeout(resolve, 800));
 
-      // Convert the input to a mermaid diagram
-      const generatedSchema = `erDiagram
-        CUSTOMER ||--o{ ORDER : places
-        CUSTOMER {
-          int id PK
-          string name
-          string email
-          string address
+      // Check if we have a selected template, and use its mermaid diagram if available
+      let generatedSchema;
+      if (selectedTemplateId) {
+        const template = getTemplateById(selectedTemplateId);
+        if (template?.mermaidDiagram) {
+          generatedSchema = template.mermaidDiagram;
         }
-        ORDER {
-          int id PK
-          date orderDate
-          string status
-          int customerId FK
-        }`;
+      }
+      
+      // If no template diagram available, generate a default one
+      if (!generatedSchema) {
+        generatedSchema = `erDiagram
+          CUSTOMER ||--o{ ORDER : places
+          CUSTOMER {
+            int id PK
+            string name
+            string email
+            string address
+          }
+          ORDER {
+            int id PK
+            date orderDate
+            string status
+            int customerId FK
+          }`;
+      }
 
       setSchema(generatedSchema);
       setActiveStep(1);
@@ -127,6 +165,9 @@ const App = () => {
                   setInputText={setInputText}
                   handleGenerateSchema={handleGenerateSchema}
                   isGeneratingSchema={isGeneratingSchema}
+                  templates={templates}
+                  selectedTemplateId={selectedTemplateId}
+                  handleSelectTemplate={handleSelectTemplate}
                 />
               )}
               
